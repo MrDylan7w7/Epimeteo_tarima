@@ -1,184 +1,590 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Página Especial</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #000;
-      color: #fff;
-      font-family: 'Segoe UI', sans-serif;
-      height: 100vh;
-      overflow: hidden;
-      cursor: pointer;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Empaquetador de Tarimas — Prototipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0A1A2F;
+    --panel: #0F2440;
+    --panel-2: #0C1F38;
+    --line: #2E5C8A;
+    --line-soft: rgba(46,92,138,0.35);
+    --text: #E8EEF5;
+    --text-dim: #7FA3C7;
+    --amber: #F4A340;
+    --teal: #4FD1C5;
+    --red: #E85D5D;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; padding:0; height:100%; width:100%;
+    background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    overflow:hidden;
+  }
+  #app{
+    display:grid;
+    grid-template-columns: 1fr 380px;
+    grid-template-rows: 1fr auto;
+    height:100vh; width:100vw;
+  }
+  /* ---------- viewport ---------- */
+  #viewport{
+    position:relative;
+    grid-column:1; grid-row:1;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(46,92,138,0.15), transparent 60%),
+      var(--bg);
+    overflow:hidden;
+  }
+  #viewport canvas{ display:block; width:100%; height:100%; }
+  .corner{ position:absolute; width:26px; height:26px; border-color:var(--line); opacity:0.8; pointer-events:none; }
+  .corner.tl{ top:14px; left:14px; border-top:2px solid; border-left:2px solid; }
+  .corner.tr{ top:14px; right:14px; border-top:2px solid; border-right:2px solid; }
+  .corner.bl{ bottom:14px; left:14px; border-bottom:2px solid; border-left:2px solid; }
+  .corner.br{ bottom:14px; right:14px; border-bottom:2px solid; border-right:2px solid; }
+  #viewport-tag{
+    position:absolute; top:16px; left:50px;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.04em;
+    color:var(--text-dim);
+  }
+  #viewport-tag b{ color:var(--text); font-weight:600; }
+  #render-toggle{
+    position:absolute; bottom:16px; left:50px;
+    display:flex; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim);
+  }
 
-    /* Luna morada superior izquierda */
-    .moon {
-      position: absolute;
-      top: 40px;
-      left: 40px;
-      width: 90px;
-      height: 90px;
-      background: radial-gradient(circle at 30% 30%, #c3a6ff, #7c4dff);
-      border-radius: 50%;
-      box-shadow: 0 0 50px 15px rgba(179, 157, 219, 0.5);
-      z-index: 1;
-    }
+  /* ---------- sidebar ---------- */
+  #sidebar{
+    grid-column:2; grid-row:1;
+    background:var(--panel);
+    border-left:1px solid var(--line-soft);
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  .sb-section{ padding:16px 18px; border-bottom:1px solid var(--line-soft); }
+  .sb-title{ font-size:12px; font-weight:600; letter-spacing:0.06em; color:var(--text-dim); margin:0 0 10px; text-transform:uppercase; }
 
-    /* Destellos morados */
-    .sparkle {
-      position: absolute;
-      width: 3px;
-      height: 3px;
-      background: #d1c4e9;
-      border-radius: 50%;
-      animation: twinkle 4s infinite ease-in-out;
-      opacity: 0;
-      z-index: 0;
-    }
-    @keyframes twinkle {
-      0%, 100% { opacity: 0.15; transform: scale(1); }
-      50% { opacity: 0.9; transform: scale(1.6); }
-    }
+  #box-list{ flex:1; overflow-y:auto; padding:6px 10px; }
+  .box-row{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 8px; border-radius:2px; cursor:pointer;
+    border:1px solid transparent;
+    transition:background .15s, border-color .15s;
+  }
+  .box-row:hover{ background:rgba(255,255,255,0.03); }
+  .box-row.active{ background:rgba(79,209,197,0.08); border-color:var(--teal); }
+  .box-row.pending{ opacity:0.45; }
+  .swatch{ width:14px; height:14px; flex:none; border-radius:2px; box-shadow:0 0 0 1px rgba(255,255,255,0.25) inset; }
+  .box-row .num{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim); width:16px; flex:none; }
+  .box-row .info{ flex:1; min-width:0; }
+  .box-row .name{ font-size:13px; font-weight:500; line-height:1.3; }
+  .box-row .dims{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim); }
+  .box-row .frag{ font-size:10px; color:var(--amber); font-weight:600; letter-spacing:0.03em; }
 
-    /* Modal de contraseña */
-    #passwordModal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      justify-content: center;
-      align-items: center;
-      z-index: 100;
-    }
-    .modal-box {
-      background: #111;
-      padding: 30px;
-      border-radius: 12px;
-      text-align: center;
-      border: 1px solid #7c4dff;
-      box-shadow: 0 0 25px rgba(124,77,255,0.3);
-    }
-    .modal-box input {
-      padding: 10px 15px;
-      font-size: 16px;
-      background: #222;
-      color: #fff;
-      border: 1px solid #555;
-      border-radius: 6px;
-      outline: none;
-      text-align: center;
-    }
-    .modal-box button {
-      display: block;
-      margin: 15px auto 0;
-      padding: 10px 24px;
-      background: #7c4dff;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 15px;
-    }
-    .modal-box button:hover { background: #651fff; }
-    #errorMsg { color: #ff5252; margin-top: 10px; display: none; font-size: 14px; }
+  #detail{ font-family:'IBM Plex Mono', monospace; font-size:12px; line-height:1.9; }
+  #detail .row{ display:flex; justify-content:space-between; gap:10px; }
+  #detail .k{ color:var(--text-dim); }
+  #detail .v{ color:var(--text); }
+  #detail .v.frag{ color:var(--amber); }
+  #detail-empty{ color:var(--text-dim); font-size:12.5px; }
 
-    /* Contenedor del video */
-    #videoContainer {
-      display: none;
-      position: fixed;
-      inset: 0;
-      justify-content: center;
-      align-items: center;
-      z-index: 50;
-    }
-    iframe {
-      width: 85%;
-      max-width: 1100px;
-      height: 65vh;
-      border: none;
-      border-radius: 10px;
-      box-shadow: 0 0 40px rgba(124, 77, 255, 0.35);
-    }
-  </style>
+  #stats{ font-family:'IBM Plex Mono', monospace; font-size:12px; }
+  .stat-row{ display:flex; justify-content:space-between; margin-bottom:8px; }
+  .stat-row .k{ color:var(--text-dim); }
+  .bar{ height:4px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; margin-top:4px; }
+  .bar > div{ height:100%; background:var(--teal); transition:width .3s; }
+
+  #controls{ display:flex; flex-wrap:wrap; gap:8px; }
+  button{
+    font-family:'IBM Plex Sans', sans-serif; font-size:12.5px; font-weight:500;
+    background:var(--panel-2); color:var(--text);
+    border:1px solid var(--line); border-radius:2px;
+    padding:9px 12px; cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  button:hover:not(:disabled){ border-color:var(--teal); background:rgba(79,209,197,0.08); }
+  button:disabled{ opacity:0.35; cursor:default; }
+  button.primary{ background:var(--teal); color:#06251F; border-color:var(--teal); font-weight:600; }
+  button.primary:hover{ filter:brightness(1.08); }
+  button.wide{ flex:1 1 100%; }
+  label.check{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); cursor:pointer; }
+
+  /* ---------- title block ---------- */
+  #titleblock{
+    grid-column:1 / span 2; grid-row:2;
+    display:flex; flex-wrap:wrap; align-items:center;
+    gap:0; background:var(--panel-2); border-top:1px solid var(--line-soft);
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim);
+  }
+  #titleblock .tb-field{ padding:9px 16px; border-right:1px solid var(--line-soft); white-space:nowrap; }
+  #titleblock .tb-field b{ color:var(--text); font-weight:600; }
+  #titleblock .tb-field.grow{ flex:1; }
+
+  @media (max-width: 860px){
+    #app{ grid-template-columns:1fr; grid-template-rows: 48vh 1fr auto; }
+    #viewport{ grid-column:1; grid-row:1; }
+    #sidebar{ grid-column:1; grid-row:2; border-left:none; border-top:1px solid var(--line-soft); }
+    #titleblock{ grid-column:1; grid-row:3; font-size:10px; }
+    #titleblock .tb-field{ padding:7px 10px; }
+  }
+</style>
 </head>
 <body>
+<div id="app">
 
-  <div class="moon"></div>
-
-  <!-- Modal de contraseña -->
-  <div id="passwordModal">
-    <div class="modal-box">
-      <h3 style="margin-bottom:15px;">🔐 Introduce la contraseña</h3>
-      <input type="password" id="passInput" placeholder="• • •" maxlength="10">
-      <br>
-      <button onclick="checkPass()">Acceder</button>
-      <p id="errorMsg">Contraseña incorrecta</p>
+  <div id="viewport">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div id="viewport-tag">TARIMA <b>120 × 100 cm</b> · ALTURA MÁX. <b>180 cm</b></div>
+    <div id="render-toggle">
+      <label class="check"><input type="checkbox" id="toggleFaces"> mostrar caras translúcidas</label>
     </div>
   </div>
 
-  <!-- Video modo cine -->
-  <div id="videoContainer">
-    <!-- Reemplaza VIDEO_ID con el ID de tu video de YouTube -->
-    <iframe id="videoFrame" 
-      src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&controls=0&modestbranding=1&rel=0&loop=1&playlist=VIDEO_ID&start=0" 
-      allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  <div id="sidebar">
+    <div class="sb-section" style="border-bottom:1px solid var(--line-soft);">
+      <p class="sb-title">Orden de colocación</p>
+    </div>
+    <div id="box-list"></div>
+
+    <div class="sb-section">
+      <p class="sb-title">Caja actual</p>
+      <div id="detail"><div id="detail-empty">Ninguna caja colocada todavía.</div></div>
+    </div>
+
+    <div class="sb-section">
+      <p class="sb-title">Avance de carga</p>
+      <div id="stats"></div>
+    </div>
+
+    <div class="sb-section" id="controls">
+      <button id="btnPrev">◀ Anterior</button>
+      <button id="btnNext" class="primary">Siguiente ▶</button>
+      <button id="btnPlay">▶ Reproducir</button>
+      <button id="btnReset">↺ Reiniciar</button>
+    </div>
   </div>
 
-  <!-- Música de fondo -->
-  <audio id="bgMusic" loop>
-    <!-- Reemplaza con tu archivo .mp3 subido al mismo hosting o una URL directa -->
-    <source src="musica.mp3" type="audio/mpeg">
-  </audio>
+  <div id="titleblock">
+    <div class="tb-field"><b>PROYECTO</b> · Empaquetado de tarimas</div>
+    <div class="tb-field">TARIMA <b>120 × 100 × 13 cm</b></div>
+    <div class="tb-field">ALTURA MÁX. TOTAL <b>180 cm</b></div>
+    <div class="tb-field">CAJAS <b id="tbCount">0/10</b></div>
+    <div class="tb-field grow"></div>
+    <div class="tb-field">ESCALA 1:1 · PROTOTIPO REV.A</div>
+  </div>
 
-  <script>
-    // Generar destellos aleatorios
-    for (let i = 0; i < 60; i++) {
-      const s = document.createElement('div');
-      s.className = 'sparkle';
-      s.style.left = Math.random() * 100 + '%';
-      s.style.top = Math.random() * 100 + '%';
-      s.style.animationDelay = Math.random() * 4 + 's';
-      document.body.appendChild(s);
-    }
+</div>
 
-    let userInteracted = false;
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    // Detectar primer clic en cualquier parte (excepto modales)
-    document.body.addEventListener('click', function(e) {
-      if (userInteracted) return;
-      if (e.target.closest('#passwordModal') || e.target.closest('#videoContainer')) return;
-      
-      userInteracted = true;
-      
-      // Reproducir audio (los navegadores lo permiten tras interacción del usuario)
-      const audio = document.getElementById('bgMusic');
-      audio.volume = 0.2; // 20% de volumen
-      audio.play().catch(() => {});
+/* =========================================================
+   1. DATOS DE LAS CAJAS
+   Orden pensado para el algoritmo: primero las frágiles
+   (van directo al piso de la tarima, sin nada encima),
+   luego el resto de más pesada a más liviana para formar
+   una base estable.
+   ========================================================= */
+const PALLET_L = 120;   // eje X, cm
+const PALLET_W = 100;   // eje Z, cm
+const PALLET_H = 13;    // altura de la tarima, cm
+const MAX_TOTAL_H = 180; // altura máxima total permitida
+const MAX_STACK_H = MAX_TOTAL_H - PALLET_H; // altura útil para apilar cajas
 
-      // Mostrar modal de contraseña
-      document.getElementById('passwordModal').style.display = 'flex';
-    });
+const boxesData = [
+  { name:'Caja de Espejos',        L:60, W:40, H:100, weight:25, fragile:true,  color:0xE85D5D, note:'4 espejos' },
+  { name:'Caja Pequeña Frágil',    L:25, W:25, H:25,  weight:5,  fragile:true,  color:0xF4A340 },
+  { name:'Caja Grande Pesada',     L:60, W:50, H:50,  weight:40, fragile:false, color:0x4FD1C5 },
+  { name:'Caja Cubo Grande',       L:45, W:45, H:45,  weight:28, fragile:false, color:0x6C8EF5 },
+  { name:'Caja Plana Ancha',       L:60, W:60, H:20,  weight:22, fragile:false, color:0xB388FF },
+  { name:'Caja Mediana',           L:50, W:40, H:40,  weight:20, fragile:false, color:0x7ED957 },
+  { name:'Caja Cubo Mediano',      L:40, W:40, H:40,  weight:18, fragile:false, color:0x5BC0EB },
+  { name:'Caja Rectangular Larga', L:80, W:30, H:25,  weight:15, fragile:false, color:0xFF8FA3 },
+  { name:'Caja Alta Angosta',      L:30, W:30, H:70,  weight:12, fragile:false, color:0x9AE6B4 },
+  { name:'Caja Cubo Pequeño',      L:30, W:30, H:30,  weight:8,  fragile:false, color:0xC792EA },
+];
 
-    // Validar contraseña
-    function checkPass() {
-      const pass = document.getElementById('passInput').value;
-      if (pass === '114') {
-        document.getElementById('passwordModal').style.display = 'none';
-        document.getElementById('videoContainer').style.display = 'flex';
-      } else {
-        document.getElementById('errorMsg').style.display = 'block';
-        document.getElementById('passInput').value = '';
+/* =========================================================
+   2. ALGORITMO DE EMPAQUETADO
+   Heurística tipo "skyline" en una grilla de 5 cm sobre la
+   tarima. Para cada caja, en el orden dado arriba, se busca
+   la posición (y rotación 90°) que produzca la menor altura
+   final, priorizando además un apoyo lo más plano posible.
+   Reglas de negocio:
+   - Una caja frágil solo puede apoyarse directo en la tarima
+     (base = 0) y nada puede apilarse después sobre su huella.
+   - Ninguna caja puede sobrepasar los 180 cm totales.
+   ========================================================= */
+function computePlacements(boxes){
+  const CELL = 5;
+  const nx = PALLET_L / CELL;
+  const nz = PALLET_W / CELL;
+  const height  = Array.from({length:nx}, () => new Array(nz).fill(0));
+  const blocked = Array.from({length:nx}, () => new Array(nz).fill(false));
+  const placements = [];
+
+  for (const box of boxes){
+    const orientations = (box.L === box.W) ? [[box.L, box.W]] : [[box.L, box.W],[box.W, box.L]];
+    let best = null;
+
+    for (const [l, w] of orientations){
+      const cl = l / CELL, cw = w / CELL;
+      for (let ix = 0; ix <= nx - cl; ix++){
+        for (let iz = 0; iz <= nz - cw; iz++){
+          let base = 0, minH = Infinity, isBlocked = false;
+          for (let a = ix; a < ix + cl && !isBlocked; a++){
+            for (let b = iz; b < iz + cw; b++){
+              if (blocked[a][b]) { isBlocked = true; break; }
+              base = Math.max(base, height[a][b]);
+              minH = Math.min(minH, height[a][b]);
+            }
+          }
+          if (isBlocked) continue;
+          if (box.fragile && base > 0) continue;
+          const top = base + box.H;
+          if (top > MAX_STACK_H) continue;
+          const variance = base - minH;
+          const score = top * 1000 + variance * 10 + (ix + iz);
+          if (!best || score < best.score){
+            best = { l, w, cl, cw, ix, iz, base, top, rotated: l !== box.L, score };
+          }
+        }
       }
     }
 
-    // Permitir Enter para enviar contraseña
-    document.getElementById('passInput').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') checkPass();
+    if (!best){
+      // Respaldo (no debería ocurrir con estas 10 cajas): coloca en el origen.
+      best = { l:box.L, w:box.W, cl:box.L/CELL, cw:box.W/CELL, ix:0, iz:0, base:0, top:box.H, rotated:false };
+    }
+
+    for (let a = best.ix; a < best.ix + best.cl; a++){
+      for (let b = best.iz; b < best.iz + best.cw; b++){
+        height[a][b] = best.top;
+        if (box.fragile) blocked[a][b] = true;
+      }
+    }
+
+    placements.push({
+      ...box,
+      L: best.l, W: best.w, rotated: best.rotated,
+      x: best.ix * CELL, z: best.iz * CELL,
+      yBase: PALLET_H + best.base, yTop: PALLET_H + best.top,
     });
-  </script>
+  }
+  return placements;
+}
+
+const placements = computePlacements(boxesData);
+
+/* =========================================================
+   3. ESCENA THREE.JS
+   ========================================================= */
+const viewportEl = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0A1A2F);
+scene.fog = new THREE.Fog(0x0A1A2F, 500, 950);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 3000);
+camera.position.set(210, 240, 270);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+viewportEl.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(PALLET_L/2, 70, PALLET_W/2);
+controls.minDistance = 120;
+controls.maxDistance = 700;
+controls.maxPolarAngle = Math.PI/2 - 0.02;
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dLight = new THREE.DirectionalLight(0xffffff, 0.5);
+dLight.position.set(150, 300, 200);
+scene.add(dLight);
+
+// Suelo / grilla de referencia
+const grid = new THREE.GridHelper(500, 50, 0x2E5C8A, 0x16304F);
+grid.position.y = 0;
+scene.add(grid);
+
+/* --- Tarima de madera --- */
+const palletGroup = new THREE.Group();
+const palletMat = new THREE.MeshStandardMaterial({ color:0x8A5A34, roughness:0.9 });
+const palletMesh = new THREE.Mesh(new THREE.BoxGeometry(PALLET_L, PALLET_H, PALLET_W), palletMat);
+palletMesh.position.set(PALLET_L/2, PALLET_H/2, PALLET_W/2);
+palletGroup.add(palletMesh);
+const palletEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(palletMesh.geometry),
+  new THREE.LineBasicMaterial({ color:0x3E2A18 })
+);
+palletEdges.position.copy(palletMesh.position);
+palletGroup.add(palletEdges);
+// Tablones (líneas oscuras sobre la tarima, referencia visual de madera)
+for (let i = 1; i < 6; i++){
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(PALLET_L, 0.4, 3),
+    new THREE.MeshBasicMaterial({ color:0x5C3B20 })
+  );
+  stripe.position.set(PALLET_L/2, PALLET_H + 0.25, (PALLET_W/6) * i);
+  palletGroup.add(stripe);
+}
+scene.add(palletGroup);
+
+/* --- Envolvente de altura máxima (líneas punteadas) --- */
+{
+  const envGeo = new THREE.BoxGeometry(PALLET_L, MAX_TOTAL_H, PALLET_W);
+  const envEdges = new THREE.EdgesGeometry(envGeo);
+  const envMat = new THREE.LineDashedMaterial({ color:0xF4A340, dashSize:4, gapSize:3, transparent:true, opacity:0.55 });
+  const envLines = new THREE.LineSegments(envEdges, envMat);
+  envLines.position.set(PALLET_L/2, MAX_TOTAL_H/2, PALLET_W/2);
+  envLines.computeLineDistances();
+  scene.add(envLines);
+}
+
+/* --- Etiquetas de medidas (sprites de texto) --- */
+function makeLabel(text, color = '#7FA3C7'){
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontSize = 46;
+  ctx.font = `600 ${fontSize}px 'IBM Plex Mono', monospace`;
+  const textW = ctx.measureText(text).width;
+  canvas.width = textW + 24;
+  canvas.height = fontSize * 1.5;
+  ctx.font = `600 ${fontSize}px 'IBM Plex Mono', monospace`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 12, canvas.height/2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false }));
+  const desiredHeight = 7;
+  sprite.scale.set(desiredHeight * (canvas.width/canvas.height), desiredHeight, 1);
+  return sprite;
+}
+const labelL = makeLabel('120 cm'); labelL.position.set(PALLET_L/2, 2, -10); scene.add(labelL);
+const labelW = makeLabel('100 cm'); labelW.position.set(-14, 2, PALLET_W/2); scene.add(labelW);
+const labelH = makeLabel('13 cm');  labelH.position.set(PALLET_L + 10, PALLET_H, -6); scene.add(labelH);
+const labelMax = makeLabel('180 cm máx.', '#F4A340'); labelMax.position.set(PALLET_L + 12, MAX_TOTAL_H, PALLET_W/2); scene.add(labelMax);
+
+/* --- Cajas (aristas + vértices) --- */
+const vertexGeo = new THREE.SphereGeometry(1.7, 8, 8);
+const vertexMat = new THREE.MeshBasicMaterial({ color:0xE8EEF5 });
+
+const boxGroups = placements.map((p) => {
+  const group = new THREE.Group();
+  const geo = new THREE.BoxGeometry(p.L, p.H, p.W);
+
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geo),
+    new THREE.LineBasicMaterial({ color:p.color, linewidth:2 })
+  );
+  group.add(edges);
+
+  const faceMat = new THREE.MeshBasicMaterial({ color:p.color, transparent:true, opacity:0.12, depthWrite:false });
+  const faceMesh = new THREE.Mesh(geo, faceMat);
+  faceMesh.visible = false;
+  group.add(faceMesh);
+  group.userData.faceMesh = faceMesh;
+
+  const corners = [
+    [-1,-1,-1],[1,-1,-1],[-1,1,-1],[1,1,-1],
+    [-1,-1,1],[1,-1,1],[-1,1,1],[1,1,1],
+  ];
+  for (const [sx, sy, sz] of corners){
+    const v = new THREE.Mesh(vertexGeo, vertexMat);
+    v.position.set(sx * p.L/2, sy * p.H/2, sz * p.W/2);
+    group.add(v);
+  }
+
+  group.position.set(p.x + p.L/2, p.yBase + p.H/2, p.z + p.W/2);
+  group.userData.finalY = group.position.y;
+  group.visible = false;
+  scene.add(group);
+  return group;
+});
+
+/* =========================================================
+   4. ANIMACIÓN DE CAÍDA AL REVELAR UNA CAJA
+   ========================================================= */
+const activeAnims = new Map();
+function revealBox(i){
+  const g = boxGroups[i];
+  if (g.visible) return;
+  g.visible = true;
+  const target = g.userData.finalY;
+  g.position.y = target + 90;
+  const start = performance.now();
+  const duration = 550;
+  activeAnims.set(i, { start, duration, target });
+}
+function tickAnims(now){
+  for (const [i, a] of activeAnims){
+    const t = Math.min(1, (now - a.start) / a.duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    boxGroups[i].position.y = (boxGroups[i].userData.finalY + 90) + (a.target - (boxGroups[i].userData.finalY + 90)) * eased;
+    if (t >= 1){ boxGroups[i].position.y = a.target; activeAnims.delete(i); }
+  }
+}
+
+/* =========================================================
+   5. RESIZE Y LOOP DE RENDER
+   ========================================================= */
+function resize(){
+  const w = viewportEl.clientWidth, h = viewportEl.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate(now){
+  requestAnimationFrame(animate);
+  tickAnims(now || 0);
+  controls.update();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+document.getElementById('toggleFaces').addEventListener('change', (e) => {
+  boxGroups.forEach(g => { g.userData.faceMesh.visible = e.target.checked; });
+});
+
+/* =========================================================
+   6. INTERFAZ: lista, detalle, estadísticas, controles
+   ========================================================= */
+const listEl = document.getElementById('box-list');
+placements.forEach((p, i) => {
+  const row = document.createElement('div');
+  row.className = 'box-row pending';
+  row.dataset.index = i;
+  row.innerHTML = `
+    <span class="num">${String(i+1).padStart(2,'0')}</span>
+    <span class="swatch" style="background:#${p.color.toString(16).padStart(6,'0')}"></span>
+    <span class="info">
+      <div class="name">${p.name}</div>
+      <div class="dims">${p.L}×${p.W}×${p.H} cm · ${p.weight} kg ${p.fragile ? '<span class="frag">· ⚠ FRÁGIL</span>' : ''}</div>
+    </span>
+  `;
+  row.addEventListener('click', () => goToStep(i+1));
+  listEl.appendChild(row);
+});
+
+const detailEl = document.getElementById('detail');
+const statsEl = document.getElementById('stats');
+const tbCount = document.getElementById('tbCount');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnPlay = document.getElementById('btnPlay');
+const btnReset = document.getElementById('btnReset');
+
+const TOTAL = placements.length;
+const totalWeight = placements.reduce((s,p) => s + p.weight, 0);
+const usableVolume = PALLET_L * PALLET_W * MAX_STACK_H;
+
+let step = 0;
+let playing = false;
+let playTimer = null;
+
+function render(){
+  document.querySelectorAll('.box-row').forEach((row, i) => {
+    row.classList.toggle('active', i === step - 1);
+    row.classList.toggle('pending', i > step - 1);
+  });
+
+  if (step === 0){
+    detailEl.innerHTML = '<div id="detail-empty">Ninguna caja colocada todavía.</div>';
+  } else {
+    const p = placements[step - 1];
+    detailEl.innerHTML = `
+      <div class="row"><span class="k">Caja</span><span class="v">${p.name}</span></div>
+      <div class="row"><span class="k">Dimensiones</span><span class="v">${p.L}×${p.W}×${p.H} cm</span></div>
+      <div class="row"><span class="k">Peso</span><span class="v">${p.weight} kg</span></div>
+      <div class="row"><span class="k">Fragilidad</span><span class="v ${p.fragile ? 'frag' : ''}">${p.fragile ? 'Frágil — no apilar encima' : 'Estándar'}</span></div>
+      <div class="row"><span class="k">Posición en tarima</span><span class="v">x:${p.x} · z:${p.z} cm</span></div>
+      <div class="row"><span class="k">Altura (base–tope)</span><span class="v">${p.yBase}–${p.yTop} cm</span></div>
+      <div class="row"><span class="k">Orientación</span><span class="v">${p.rotated ? 'Rotada 90°' : 'Normal'}</span></div>
+      ${p.note ? `<div class="row"><span class="k">Contenido</span><span class="v">${p.note}</span></div>` : ''}
+    `;
+  }
+
+  const placedSoFar = placements.slice(0, step);
+  const weightSoFar = placedSoFar.reduce((s,p) => s + p.weight, 0);
+  const maxHeight = placedSoFar.reduce((m,p) => Math.max(m, p.yTop), PALLET_H);
+  const volSoFar = placedSoFar.reduce((s,p) => s + p.L*p.W*p.H, 0);
+  const occupancy = (volSoFar / usableVolume) * 100;
+
+  statsEl.innerHTML = `
+    <div class="stat-row"><span class="k">Cajas colocadas</span><span>${step} / ${TOTAL}</span></div>
+    <div class="stat-row"><span class="k">Peso acumulado</span><span>${weightSoFar} / ${totalWeight} kg</span></div>
+    <div class="stat-row"><span class="k">Altura actual</span><span>${maxHeight} / ${MAX_TOTAL_H} cm</span></div>
+    <div class="stat-row"><span class="k">Ocupación de volumen</span><span>${occupancy.toFixed(1)}%</span>
+    </div>
+    <div class="bar"><div style="width:${Math.min(100, occupancy).toFixed(1)}%"></div></div>
+  `;
+
+  tbCount.textContent = `${step}/${TOTAL}`;
+  btnPrev.disabled = step === 0;
+  btnNext.disabled = step === TOTAL;
+}
+
+function goToStep(n){
+  n = Math.max(0, Math.min(TOTAL, n));
+  if (n > step){
+    for (let i = step; i < n; i++) revealBox(i);
+  } else if (n < step){
+    for (let i = n; i < step; i++){ boxGroups[i].visible = false; activeAnims.delete(i); }
+  }
+  step = n;
+  render();
+  if (step === TOTAL) stopPlay();
+}
+
+btnNext.addEventListener('click', () => goToStep(step + 1));
+btnPrev.addEventListener('click', () => goToStep(step - 1));
+btnReset.addEventListener('click', () => { stopPlay(); goToStep(0); });
+
+function startPlay(){
+  playing = true;
+  btnPlay.textContent = '⏸ Pausar';
+  playTimer = setInterval(() => {
+    if (step >= TOTAL) { stopPlay(); return; }
+    goToStep(step + 1);
+  }, 1300);
+}
+function stopPlay(){
+  playing = false;
+  btnPlay.textContent = '▶ Reproducir';
+  clearInterval(playTimer);
+}
+btnPlay.addEventListener('click', () => playing ? stopPlay() : startPlay());
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') goToStep(step + 1);
+  if (e.key === 'ArrowLeft') goToStep(step - 1);
+});
+
+render();
+</script>
 </body>
 </html>
